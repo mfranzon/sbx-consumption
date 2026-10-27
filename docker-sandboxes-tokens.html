@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Following the Tokens</title>
+<!--
+  15-minute talk. Style follows agents-as-colleagues: navy, one periwinkle accent,
+  amber for the traps. Courier New for titles and code, Arial for prose.
+  Keys: arrows / space to move, P for the presenter window, N for a notes strip,
+  F for fullscreen, R to replay a demo step.
+  Print = one slide per page.
+-->
+<style>
+:root {
+  --bg: #0D1220;
+  --panel: #151B2D;
+  --line: #262F47;
+  --code: #080C17;
+  --ink: #F2F4F8;
+  --muted: #B4BCCD;
+  --dim: #636B7D;
+  --blue: #9DB8F7;
+  --blue-deep: #1A2440;
+  --amber: #F9B116;
+  --amber-deep: #2A2410;
+  --mono: "Courier New", Courier, monospace;
+  --sans: Arial, Helvetica, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #05070D; overflow: hidden; }
+body { font-family: var(--sans); color: var(--ink); }
+
+.stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1600px; height: 900px;
+  transform-origin: 0 0;
+}
+.slide {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  padding: 96px 88px 0;
+  overflow: hidden;
+  display: none;
+}
+.slide.active { display: block; }
+
+/* ── frame ─────────────────────────────────────────────── */
+.eyebrow {
+  font: bold 15px/1 var(--mono);
+  letter-spacing: .32em; text-transform: uppercase;
+  color: var(--blue);
+}
+h2 {
+  font: bold 52px/1.15 var(--mono);
+  color: var(--ink);
+  margin-top: 16px;
+  letter-spacing: -.01em;
+}
+.body { position: absolute; left: 88px; right: 88px; top: 250px; height: 545px; }
+footer {
+  position: absolute; left: 88px; right: 88px; bottom: 52px;
+  display: flex; justify-content: space-between;
+  font: 14px/1 var(--mono); letter-spacing: .32em; text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ── parts ─────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.code {
+  background: var(--code);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-family: var(--mono);
+}
+.sandbox {
+  border: 2px dashed var(--blue);
+  border-radius: 14px;
+}
+.cap { font: bold 13px/1 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--dim); }
+.cap.blue { color: var(--blue); }
+.caption { font: 15px/1 var(--mono); color: var(--dim); }
+.mono { font-family: var(--mono); }
+.head { font: bold 24px/1.2 var(--mono); color: var(--ink); }
+.muted { color: var(--muted); }
+.dim { color: var(--dim); }
+.blue { color: var(--blue); }
+.amber { color: var(--amber); }
+.pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 44px; padding: 0 22px; border-radius: 22px;
+  background: var(--blue-deep); border: 1px solid #2E3B60;
+  font: 17px/1 var(--mono); color: var(--blue); white-space: nowrap;
+}
+.pill.amber { background: var(--amber-deep); border-color: #5A4714; color: var(--amber); }
+.pill.plain { background: var(--panel); border-color: var(--line); color: var(--muted); }
+.abs { position: absolute; }
+svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+s { text-decoration-thickness: 2px; }
+
+/* ── recorded demo: lines appear in order each time the slide opens (R replays) ── */
+.seq { opacity: 0; }
+.slide.active .seq { animation: show .25s ease-out var(--d, 0s) both; }
+.type { display: inline-block; vertical-align: bottom; overflow: hidden; white-space: pre; width: 0; }
+.slide.active .type { animation: type calc(var(--n) * 45ms) steps(var(--n)) var(--d, 0s) both; }
+.cursor { animation: blink 1s steps(1) infinite; }
+@keyframes show { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes type { from { width: 0; } to { width: calc(var(--n) * 1ch); } }
+@keyframes blink { 50% { opacity: 0; } }
+
+.term { top: 0; height: 300px; padding: 22px 28px; font-size: 17px; }
+.term .lines { margin-top: 22px; line-height: 1.7; white-space: pre; }
+.term .bar {
+  position: absolute; left: 20px; right: 20px; bottom: 18px; height: 56px;
+  display: flex; align-items: center; padding: 0 20px;
+  background: var(--panel); border-radius: 8px; color: var(--blue); font-weight: bold; font-size: 19px;
+}
+
+/* ── title ─────────────────────────────────────────────── */
+.title-slide h1 {
+  font: bold 96px/1.08 var(--mono);
+  letter-spacing: -.02em;
+  margin-top: 28px;
+}
+.title-slide .sub { font: 30px/1.45 var(--sans); color: var(--muted); margin-top: 44px; }
+
+/* ── light variant ─────────────────────────────────────── */
+.slide.light { background: #F5F6FA; }
+.light .eyebrow { color: #2A56C6; }
+.light h2 { color: var(--bg); }
+.light footer { color: #8A93A8; }
+
+/* ── notes ─────────────────────────────────────────────── */
+.notes { display: none; }
+#notes {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  max-height: 34vh; overflow: auto;
+  background: rgba(8, 12, 23, .96); border-top: 1px solid var(--line);
+  padding: 18px 28px; font: 17px/1.5 var(--sans); color: var(--muted);
+  display: none;
+}
+body.show-notes #notes { display: block; }
+
+/* ── presenter window (P): built by the script below in a popup ── */
+body.presenter {
+  height: 100vh; display: flex; flex-direction: column;
+  background: #05070D; color: var(--ink); font-family: var(--sans);
+}
+.pv-bar {
+  display: flex; align-items: center; gap: 28px; padding: 14px 28px;
+  border-bottom: 1px solid var(--line); font: bold 17px var(--mono); color: var(--muted);
+}
+#pv-timer { font-size: 40px; color: var(--ink); cursor: pointer; }
+#pv-pace.late { color: var(--amber); }
+#pv-pace.ahead { color: var(--blue); }
+#pv-clock { margin-left: auto; }
+.pv-bar button {
+  font: bold 15px var(--mono); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer;
+}
+.pv-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding: 20px 28px; }
+.pv-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.pv-label { font: bold 13px var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--dim); margin-top: 6px; }
+.pv-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); flex: none; }
+.pv-box.small { width: 62%; }
+.pv-box .slide { inset: auto; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
+.pv-box .end { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 15px var(--mono); color: var(--dim); }
+.pv-notes { overflow: auto; font: 26px/1.55 var(--sans); color: var(--ink); padding-right: 8px; }
+.pv-keys { padding: 10px 28px; font: 13px var(--mono); color: var(--dim); border-top: 1px solid var(--line); }
+
+/* The "next" preview shows a demo slide in its finished state. */
+.slide.still .seq, .slide.still .type, .slide.still .hot, .slide.still .cursor { animation: none !important; opacity: 1 !important; }
+.slide.still .type { width: auto !important; }
+.slide.still .monitor .hot { color: var(--amber); background: var(--amber-deep); }
+
+@media print {
+  @page { size: 1600px 900px; margin: 0; }
+  html, body { overflow: visible; background: none; height: auto; }
+  .stage { position: static; transform: none !important; }
+  .slide { display: block; position: relative; page-break-after: always; break-after: page; height: 900px; }
+  #notes { display: none !important; }
+  .seq, .type, .hot, .cursor { animation: none !important; opacity: 1 !important; }
+  .type { width: auto !important; }
+  .monitor .hot { color: var(--amber); background: var(--amber-deep); }
+}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+<!-- 1 ── Title ─────────────────────────────────────────── -->
+<section data-at="0:00" class="slide title-slide" style="padding-top: 210px">
+  <h1>Following the tokens<br><span class="blue">out of a Docker Sandbox</span></h1>
+  <p class="sub">The key stays on the host.<br>The usage object walks back out.</p>
+  <footer><span>Marco Franzon · Dualistic</span></footer>
+  <aside class="notes">Hi, I'm Marco. When you run a coding agent inside a Docker Sandbox, you get a lot of safety. But you lose sight of one thing: how many tokens the agent is spending. Today I'll show you how to get that number back, without weakening the sandbox. The trick is small. The agent already knows its own usage. We just let one line of it walk out.</aside>
+</section>
+
+<!-- 2 ── The sandbox ───────────────────────────────────── -->
+<section data-at="0:45" class="slide">
+  <div class="eyebrow">The sandbox</div>
+  <h2>Only the repo crosses into the sandbox</h2>
+  <div class="body">
+    <div class="cap abs" style="left:0; top:0">Laptop</div>
+    <div class="card abs lap" style="top:40px"><div class="mono name dim"><s>~/.claude</s></div><div class="amber">not loaded</div></div>
+    <div class="card abs lap" style="top:200px"><div class="mono name amber">API key</div><div class="muted">stays here</div></div>
+    <div class="card abs lap" style="top:360px"><div class="mono name">repo/</div><div class="muted">your project</div></div>
+
+    <div class="sandbox abs" style="left:560px; top:0; width:500px; height:500px">
+      <div class="cap blue abs" style="left:28px; top:28px">Docker sandbox · microVM</div>
+      <div class="abs head" style="left:28px; top:70px; font-size:40px">agent</div>
+      <div class="card abs inner" style="top:190px; height:80px"><span class="mono dim" style="font-size:19px">ANTHROPIC_API_KEY=placeholder</span></div>
+      <div class="card abs inner" style="top:330px; height:120px; flex-direction:column; align-items:flex-start; justify-content:center; gap:10px">
+        <span class="head" style="font-size:22px">/workspace</span>
+        <span class="mono blue" style="font-size:19px">.claude/settings.json ✓</span>
+      </div>
+    </div>
+
+    <div class="abs walls">
+      <div class="card"><span class="head">kernel</span><span class="mono blue">own</span></div>
+      <div class="card"><span class="head">network</span><span class="mono blue">allowlist</span></div>
+      <div class="card"><span class="head">workspace</span><span class="mono blue">3 modes</span></div>
+      <div class="card"><span class="head">key</span><span class="mono blue">proxy</span></div>
+    </div>
+
+    <svg class="wires" viewBox="0 0 1424 545">
+      <defs>
+        <marker id="a3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9DB8F7"/></marker>
+        <marker id="a3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#F9B116"/></marker>
+      </defs>
+      <!-- ~/.claude: stopped at the wall -->
+      <path d="M340,100 H520" stroke="#F9B116" stroke-width="2" stroke-dasharray="7 6" fill="none"/>
+      <text x="538" y="110" fill="#F9B116" font-family="Courier New" font-weight="bold" font-size="30" text-anchor="middle">✕</text>
+      <!-- key: through the proxy, as a placeholder -->
+      <path d="M340,260 H376 M504,260 H530 V230 H586" stroke="#F9B116" stroke-width="2" fill="none" marker-end="url(#a3a)"/>
+      <!-- repo: mounted or cloned in -->
+      <path d="M340,420 H500 V390 H586" stroke="#9DB8F7" stroke-width="2.5" fill="none" marker-end="url(#a3b)"/>
+      <text x="358" y="450" fill="#9DB8F7" font-family="Courier New" font-size="16">mount / clone</text>
+    </svg>
+    <div class="pill amber abs" style="left:376px; top:238px; width:128px; padding:0">proxy</div>
+  </div>
+  <style>
+    .lap { left: 0; width: 340px; height: 120px; padding: 22px 26px; font-size: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .lap .name { font-size: 26px; font-weight: bold; }
+    .inner { left: 26px; right: 26px; display: flex; align-items: center; padding: 0 24px; }
+    .walls { left: 1144px; right: 0; top: 0; display: flex; flex-direction: column; gap: 20px; }
+    .walls .card { height: 110px; padding: 20px 24px; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+    .walls .head { font-size: 22px; }
+    .walls .mono { font-size: 19px; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">Here's the sandbox. The agent runs in a small VM with its own kernel. Your project goes in, mounted or cloned. Your home folder does not. So your personal Claude settings in ~/.claude stay on the laptop. Your API key stays there too. The agent only sees a placeholder, and a proxy swaps in the real key on the way out. Great for safety. But it also means any tool that reads ~/.claude to count your usage is now looking at an empty folder.</aside>
+</section>
+
+<!-- 3 ── The trap ──────────────────────────────────────── -->
+<section data-at="2:30" class="slide">
+  <div class="eyebrow">The trap</div>
+  <h2>Three ways to look in the wrong place</h2>
+  <div class="body traps">
+    <div class="card trap">
+      <div class="num amber">0</div>
+      <div class="head">ccusage</div>
+      <div class="muted desc">reads ~/.claude on the host</div>
+      <pre class="code">$ ccusage
+
+  no sessions found</pre>
+      <span class="pill amber">BLIND</span>
+    </div>
+    <div class="card trap">
+      <div class="num amber">93</div>
+      <div class="head">sbx policy log</div>
+      <div class="muted desc">one row per allowed host</div>
+      <pre class="code">allow  api.anthropic.com
+allow  registry.npmjs.org
+allow  github.com
+  … 90 more</pre>
+      <span class="pill amber">NOT TOKENS</span>
+    </div>
+    <div class="card trap">
+      <div class="num blue">$?</div>
+      <div class="head">/usage</div>
+      <div class="muted desc">client-side list price</div>
+      <pre class="code">Total cost:  $0.61
+
+  resets on /clear</pre>
+      <span class="pill">A GAUGE</span>
+    </div>
+  </div>
+  <style>
+    .traps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+    .trap { padding: 30px 34px; display: flex; flex-direction: column; align-items: flex-start; }
+    .trap .num { font: bold 120px/1 var(--mono); letter-spacing: -.04em; }
+    .trap .head { font-size: 26px; margin-top: 22px; }
+    .trap .desc { font-size: 20px; margin-top: 10px; }
+    .trap pre { align-self: stretch; margin-top: 24px; padding: 20px 22px; font-size: 17px; line-height: 1.45; color: var(--dim); height: 140px; }
+    .trap .pill { margin-top: auto; font-size: 15px; letter-spacing: .14em; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">So where do people look? Three places, and all three mislead you. First, tools like ccusage. They read ~/.claude on the host, the session isn't there, so they show zero. Second, the sandbox network log. It tells you the agent talked to 93 hosts. But a connection is not a token: a tiny request and a huge one look the same. Third, the cost Claude Code shows inside the session. It's a list-price estimate and it resets when you clear. That one is actually useful as a gauge. We just need to get it out of the VM.</aside>
+</section>
+
+<!-- 4 ── Two doors ─────────────────────────────────────── -->
+<section data-at="4:30" class="slide">
+  <div class="eyebrow">The way out</div>
+  <h2>Two doors let the usage object leave the VM</h2>
+  <div class="body">
+    <div class="sandbox abs" style="left:0; top:0; width:400px; height:470px">
+      <div class="cap blue abs" style="left:28px; top:28px">microVM</div>
+      <div class="abs head" style="left:28px; top:64px; font-size:36px">agent</div>
+      <div class="card abs src" style="top:136px"><div class="cap">Status line</div><div class="mono blue">statusline.py</div></div>
+      <div class="card abs src" style="top:286px"><div class="cap">Hooks</div><div class="mono blue">activity.py</div></div>
+      <div class="abs muted" style="left:28px; top:418px; font-size:20px">already has the numbers</div>
+    </div>
+
+    <div class="card abs" style="left:1024px; top:0; width:400px; height:470px; padding:28px">
+      <div class="cap">Laptop</div>
+      <div class="head" style="font-size:36px; margin-top:22px">watch.py</div>
+      <div class="mono muted" style="font-size:19px; line-height:1.6; margin-top:60px">.sbx/usage.jsonl<br>.sbx/activity.jsonl</div>
+      <div class="mono muted" style="font-size:19px; margin-top:108px">listen.py&nbsp;&nbsp;:8787</div>
+    </div>
+
+    <div class="abs door" style="top:128px">
+      <div><span class="cap blue">Door 1</span><span class="head">direct mount</span></div>
+      <div class="muted">same directory, append a line</div>
+    </div>
+    <div class="abs door" style="top:278px">
+      <div><span class="cap blue">Door 2</span><span class="head">clone · mountless</span></div>
+      <div class="mono muted">POST host.docker.internal:8787</div>
+    </div>
+    <span class="pill amber abs" style="left:460px; top:388px">sbx policy allow network localhost:8787</span>
+
+    <svg class="wires" viewBox="0 0 1424 545">
+      <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9DB8F7"/></marker></defs>
+      <path d="M372,186 H1018" stroke="#9DB8F7" stroke-width="3" fill="none" marker-end="url(#a5)"/>
+      <path d="M372,336 H1018" stroke="#9DB8F7" stroke-width="3" fill="none" marker-end="url(#a5)"/>
+    </svg>
+    <div class="abs muted" style="left:0; top:505px; font-size:20px">Neither door carries the key or the prompt.</div>
+  </div>
+  <style>
+    .src { left: 26px; right: 26px; height: 100px; padding: 20px 24px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+    .src .mono { font-size: 21px; font-weight: bold; }
+    .door { left: 460px; width: 520px; }
+    .door > div:first-child { display: flex; align-items: baseline; gap: 18px; }
+    .door .head { font-size: 25px; }
+    .door > div:last-child { margin-top: 30px; font-size: 19px; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">Good news: the agent already has the numbers. Claude Code has a status line, a tiny script that gets the usage after every response. Ours is statusline.py, and it costs zero tokens because it runs locally. There's also a hook, activity.py, that records which tool ran, just the name. Both live in the repo, wired in the project's .claude/settings.json. Now, how do the numbers get out? Two doors. Door one is the direct mount: the project folder is the same folder on both sides, so a line written there is already on your laptop. Door two is for clone mode, where nothing is shared: the script sends the line over HTTP to a small listener on your laptop. You allow one address, localhost:8787, and that's it. Neither door carries your key or your prompts. Just numbers.</aside>
+</section>
+
+<!-- 5 ── Demo 1: one prompt, one row ─────────────────────── -->
+<section data-at="7:00" class="slide">
+  <div class="eyebrow">Demo · 1 / 2</div>
+  <h2>Each prompt writes one row on the laptop</h2>
+  <div class="body">
+    <div class="code abs term" style="left:0; width:580px">
+      <div class="caption">inside the sandbox · direct mount</div>
+      <div class="lines"><div class="muted">$ <span class="type" style="--n:14; --d:.3s">sbx run claude</span></div><div class="seq dim" style="--d:1.2s"># /workspace is ~/demo on the laptop</div><div class="seq muted" style="--d:1.8s">&gt; <span class="type" style="--n:19; --d:2s">refactor the parser</span></div><div class="seq dim" style="--d:3.2s">⏺ Edit src/parse.ts</div></div>
+      <div class="bar seq" style="--d:3.8s">claude-sonnet&nbsp;&nbsp;&nbsp;$0.42&nbsp;&nbsp;&nbsp;ctx 31%</div>
+    </div>
+    <div class="code abs term" style="left:612px; right:0">
+      <div class="caption">host · ~/demo</div>
+      <div class="lines"><div class="muted">$ <span class="type" style="--n:24; --d:.9s">tail -f .sbx/usage.jsonl</span></div><div class="seq" style="--d:4.3s">{"session":"a41f09c2","usd":0.42,"output":190,<span class="blue">"cache_read":140220</span>,…}</div><div class="seq blue cursor" style="--d:4.3s">▍</div></div>
+    </div>
+    <div class="abs flow">
+      <div class="card seq" style="--d:4.9s"><b>1</b><span>The status line gets the session JSON. No extra model call.</span></div>
+      <div class="card seq" style="--d:5.4s"><b>2</b><span><code>statusline.py</code> appends one line to <code>.sbx/usage.jsonl</code></span></div>
+      <div class="card seq" style="--d:5.9s"><b>3</b><span>Direct mount: the same file is already on the laptop.</span></div>
+    </div>
+  </div>
+  <style>
+    .flow { left: 0; right: 0; top: 324px; height: 221px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .flow .card { padding: 30px 30px; display: flex; flex-direction: column; gap: 22px; font-size: 22px; line-height: 1.4; color: var(--muted); }
+    .flow b { font: bold 40px/1 var(--mono); color: var(--blue); }
+    .flow code { font: bold 21px var(--mono); color: var(--ink); }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">Let me show you how it looks. This is a replay, so we don't depend on the Wi-Fi. On the left I'm inside the sandbox. I start Claude and ask it to refactor a parser. The status bar shows the model, 42 cents so far, and 31 percent of the context used. On the right, my laptop is watching the usage file. And there's the row. One prompt, one row, and the conversation itself never left the VM.</aside>
+</section>
+
+<!-- 6 ── Demo 2: the monitor ─────────────────────────────── -->
+<section data-at="8:30" class="slide">
+  <div class="eyebrow">Demo · 2 / 2</div>
+  <h2>One monitor watches every sandbox at once</h2>
+  <div class="body">
+    <div class="code abs monitor">
+      <div class="caption">host · python3 usage-tap/watch.py --budget 2</div>
+      <span class="pill amber seq abs bell" style="--d:1.8s">BELL</span>
+<pre class="seq" style="--d:.3s"><span class="dim">usage-tap  ~/demo/.sbx/  14:32:07   list price, not the invoice</span>
+
+<span class="dim">session   model                    usd   <u>$/min</u>  turns      out  <u>cache</u>   ctx    <u>5h</u>    idle  <u>tools</u></span>
+a41f09c2  claude-sonnet           0.61    0.04     14    3,210    97%   34%     -      4s  Read×12 Edit×5 Bash×3
+<span class="hot">7be2d118  claude-opus             2.37    0.31     38   18,450    41%   78%     -     12s  Bash×40 WebFetch×9<span class="seq" style="--d:1.8s">  over $2</span></span>
+<span class="dim">c09e7a55  claude-haiku            0.03    0.00      3      420    88%    6%     -    840s  Grep×2</span>
+
+<span class="dim">sessions 3   latest usd per session, added: $3.01</span></pre>
+    </div>
+    <div class="abs reads">
+      <div class="card seq" style="--d:2.6s"><div class="mono blue k">$/min</div><div class="t">burn rate</div><div class="muted">catch the runaway</div></div>
+      <div class="card seq" style="--d:3s"><div class="mono blue k">cache</div><div class="t">read / all input</div><div class="muted">cold cache costs</div></div>
+      <div class="card seq" style="--d:3.4s"><div class="mono blue k">5h</div><div class="t">plan limit</div><div class="muted">the Pro / Max unit</div></div>
+      <div class="card seq" style="--d:3.8s"><div class="mono blue k">tools</div><div class="t">from the hook</div><div class="muted">what it is doing</div></div>
+    </div>
+  </div>
+  <style>
+    .monitor { left: 0; right: 0; top: 0; height: 300px; padding: 22px 28px; }
+    .monitor pre { margin-top: 14px; font: 17px/1.6 var(--mono); color: var(--ink); }
+    .monitor u { text-decoration: none; color: var(--blue); border-bottom: 3px solid var(--blue); }
+    .monitor .hot { margin: 0 -8px; padding: 3px 8px; border-radius: 4px; }
+    .slide.active .monitor .hot { animation: flag .2s steps(1) 1.8s both; }
+    @keyframes flag { from { color: var(--ink); background: transparent; } to { color: var(--amber); background: var(--amber-deep); } }
+    .monitor .bell { right: 22px; top: 14px; height: 32px; font-size: 13px; letter-spacing: .24em; padding: 0 14px; }
+    .reads { left: 0; right: 0; top: 324px; height: 221px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .reads .card { padding: 28px 28px; }
+    .reads .k { font: bold 34px var(--mono); }
+    .reads .t { font-size: 24px; margin-top: 28px; }
+    .reads .muted { font-size: 19px; margin-top: 12px; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">One file is fine for one session. With several sandboxes you want a monitor. watch.py runs on the laptop and shows one line per session. Look at the opus row: 2.37 dollars, burning 31 cents a minute, and only 41 percent of its input comes from cache. I gave it a budget of two dollars, so the row lights up and the terminal beeps. That's a session to check now, not at the end of the month. On a Pro or Max plan, ignore the dollars and read the 5h column: how much of your plan limit you've used. And in clone mode the rows arrive through the listener instead, and the monitor reads both doors, so nothing changes.</aside>
+</section>
+
+<!-- 7 ── What it is not (light) ───────────────────────── -->
+<section data-at="10:30" class="slide light">
+  <div class="eyebrow">What it is not</div>
+  <h2>These numbers are an estimate and not a bill</h2>
+  <div class="body pairs">
+    <div><b>jsonl</b><i>≠</i><b class="no">invoice</b><span>reconcile weekly with the console</span></div>
+    <div><b>tokens</b><i>≠</i><b class="no">prompts</b><span>gitignore .sbx/</span></div>
+    <div><b>Claude</b><i>≠</i><b class="no">Codex</b><span>same pattern, other file</span></div>
+    <div><b>tokens</b><i>≠</i><b class="no">seconds</b><span>two columns, never one sum</span></div>
+  </div>
+  <style>
+    .pairs { display: grid; grid-template-rows: repeat(4, 1fr); gap: 16px; }
+    .pairs > div {
+      display: grid; grid-template-columns: 300px 110px 340px 1fr; align-items: center;
+      background: #fff; border: 1px solid #DDE6FB; border-radius: 10px; padding: 0 36px;
+    }
+    .pairs b { font: bold 52px var(--mono); color: var(--bg); letter-spacing: -.02em; }
+    .pairs b.no { color: #9AA2B4; }
+    .pairs i { font: bold 56px var(--mono); font-style: normal; color: #2A56C6; text-align: center; }
+    .pairs span { font-size: 21px; color: #5A6273; text-align: right; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">Let's be honest about what this is. It's an estimate at list price. And the dollar column is already a running total for the session, so never add it up. Your real bill lives in the provider console, so check it once a week. The rows never contain your prompts, and you should still gitignore the .sbx folder. The same idea works for Codex, with a different file. And sandbox seconds and model tokens are two different bills, so keep them in two columns.</aside>
+</section>
+
+<!-- 8 ── Monday ───────────────────────────────────────── -->
+<section data-at="12:00" class="slide">
+  <div class="eyebrow">Monday</div>
+  <h2>Five steps set it up once per repo</h2>
+  <div class="body">
+    <div class="abs steps">
+      <div class="step"><b>1</b><div class="head">Copy</div><div class="mono muted">usage-tap/</div></div>
+      <div class="step"><b>2</b><div class="head">Ignore</div><div class="mono muted">.sbx/</div></div>
+      <div class="step"><b>3</b><div class="head">Watch</div><div class="mono muted">watch.py</div></div>
+      <div class="step"><b>4</b><div class="head">Allow</div><div class="mono muted">localhost:8787</div></div>
+      <div class="step"><b>5</b><div class="head">Trust</div><div class="mono muted">the console</div></div>
+    </div>
+    <div class="code abs repo"><span class="dim">$</span> git clone <span class="blue">github.com/mfranzon/usage-tap</span></div>
+    <div class="abs ends">
+      <div class="card"><div class="big">Free</div><div class="dim">laptop</div></div>
+      <div class="card"><div class="big">Seconds</div><div class="dim">cloud</div></div>
+      <div class="card hl"><div class="big">Tokens</div><div class="blue">provider</div></div>
+    </div>
+  </div>
+  <style>
+    .steps { left: 0; right: 0; top: 40px; display: grid; grid-template-columns: repeat(5, 1fr); }
+    .steps::before { content: ""; position: absolute; left: 36px; right: calc(20% - 36px); top: 35px; height: 2px; background: var(--line); }
+    .step { position: relative; }
+    .step b {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--bg); border: 2px solid var(--dim);
+      font: bold 28px var(--mono);
+    }
+    .step .head { font-size: 34px; margin-top: 26px; }
+    .step .mono { font-size: 19px; margin-top: 10px; }
+    .repo { left: 0; top: 232px; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 24px; font-size: 21px; }
+    .ends { left: 0; right: 0; top: 320px; height: 205px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+    .ends .card { padding: 36px 40px; font-size: 22px; }
+    .ends .card.hl { border-color: var(--blue); }
+    .ends .big { font: bold 56px var(--mono); margin-bottom: 18px; letter-spacing: -.02em; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">So what do you do on Monday? Copy the usage-tap folder into your repo. Add .sbx to gitignore. Run watch.py on your laptop. If you use clone mode, allow localhost:8787. And when a number looks scary, open the provider console: that's the number you actually pay. Everything is on GitHub, the link is right there.</aside>
+</section>
+
+<!-- 9 ── Thanks ───────────────────────────────────────── -->
+<section data-at="13:30" class="slide thanks">
+  <div class="eyebrow">Questions?</div>
+  <h1>Thanks</h1>
+  <p class="sub">Marco Franzon · <span class="mono blue">github.com/mfranzon/usage-tap</span></p>
+  <style>
+    .slide.thanks { padding-top: 290px; }
+    .thanks h1 { font: bold 160px/1 var(--mono); letter-spacing: -.03em; margin-top: 28px; }
+    .thanks .sub { font: 28px/1.4 var(--sans); color: var(--muted); margin-top: 48px; }
+    .thanks .sub .mono { font-size: 26px; }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span></footer>
+  <aside class="notes">That's it: keep the keys in, and let the usage out. The code is on GitHub at mfranzon/usage-tap, MIT licensed, plain Python with no dependencies. Thank you! I'm happy to take questions.</aside>
+</section>
+
+<!-- 10 ── Off the record ───────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">Off the record</div>
+  <h2>Six claims to leave out of the talk</h2>
+  <div class="body nos">
+    <div class="card"><s>sbx counts tokens</s><span>→&nbsp;&nbsp;it counts hosts</span></div>
+    <div class="card"><s>jsonl is the invoice</s><span>→&nbsp;&nbsp;list price</span></div>
+    <div class="card"><s>sum the usd column</s><span>→&nbsp;&nbsp;already cumulative</span></div>
+    <div class="card"><s>clone writes the host</s><span>→&nbsp;&nbsp;it writes the clone</span></div>
+    <div class="card"><s>~/.claude applies</s><span>→&nbsp;&nbsp;project .claude does</span></div>
+    <div class="card"><s>OTel from the repo</s><span>→&nbsp;&nbsp;ignored in project settings</span></div>
+  </div>
+  <style>
+    .nos { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 24px 32px; }
+    .nos .card { padding: 0 36px; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+    .nos s { font: bold 28px var(--mono); color: var(--dim); }
+    .nos span { font-size: 24px; color: var(--blue); }
+  </style>
+  <footer><span>Docker Sandboxes · Tokens</span><span class="pg"></span></footer>
+  <aside class="notes">Backup for questions, don't present it. sbx counts hosts, not tokens. The file is an estimate, not the invoice. Never sum the dollar column. In clone mode the file stays in the clone. Project .claude settings apply, your home ~/.claude doesn't. OpenTelemetry can't be switched on from the repo settings. Sources, checked 23 Oct 2026: code.claude.com/docs/en/statusline, /costs, /hooks and /monitoring-usage, plus the Docker Sandboxes docs.</aside>
+</section>
+
+</div>
+<div id="notes"></div>
+
+<script>
+// Navigation, scaling, notes.
+{
+  const stage = document.getElementById("stage");
+  const slides = [...document.querySelectorAll(".slide")];
+  const notes = document.getElementById("notes");
+  let cur = 0;
+
+  function fit() {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+  }
+  function go(n) {
+    cur = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, i) => s.classList.toggle("active", i === cur));
+    notes.textContent = `${cur + 1} / ${slides.length} · ` + (slides[cur].querySelector(".notes")?.textContent || "");
+    history.replaceState(null, "", "#" + (cur + 1));
+    renderPresenter();
+  }
+  // Restart the current slide's demo animations.
+  function replay() {
+    const s = slides[cur];
+    s.classList.remove("active");
+    void s.offsetWidth;
+    s.classList.add("active");
+  }
+
+  slides.forEach((s, i) => {
+    const pg = s.querySelector(".pg");
+    if (pg) pg.textContent = `${i + 1} / ${slides.length}`;
+  });
+
+  addEventListener("resize", fit);
+  function onKey(e) {
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) go(cur + 1);
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) go(cur - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(slides.length - 1);
+    else if (e.key === "n" || e.key === "N") document.body.classList.toggle("show-notes");
+    else if (e.key === "f" || e.key === "F") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    else if (e.key === "r" || e.key === "R") replay();
+    else if (e.key === "p" || e.key === "P") presenter();
+    else return;
+    e.preventDefault();
+  }
+  addEventListener("keydown", onKey);
+  addEventListener("click", (e) => { if (!e.target.closest("#notes")) go(cur + (e.clientX < innerWidth / 3 ? -1 : 1)); });
+
+  // Presenter view: a popup on the laptop screen with the timer, this slide, the next one
+  // and the notes. It is an about:blank window written from here, so it works from file://
+  // and this window drives it directly.
+  let pv = null, started = 0;
+  const mmss = (sec) => `${sec < 0 ? "-" : ""}${Math.floor(Math.abs(sec) / 60)}:${String(Math.floor(Math.abs(sec) % 60)).padStart(2, "0")}`;
+  const planned = (s) => {
+    const [m, sec] = (s.dataset.at || "").split(":").map(Number);
+    return s.dataset.at ? m * 60 + sec : null;
+  };
+
+  function presenter() {
+    if (pv && !pv.closed) return pv.focus();
+    pv = open("", "presenter", "width=1280,height=800");
+    if (!pv) return;
+    const d = pv.document;
+    d.title = "Presenter · " + document.title;
+    document.querySelectorAll("head style").forEach((st) => d.head.append(d.importNode(st, true)));
+    d.body.className = "presenter";
+    d.body.innerHTML = `
+      <header class="pv-bar">
+        <span id="pv-timer" title="click to restart">0:00</span>
+        <span id="pv-pace"></span>
+        <span id="pv-count"></span>
+        <button id="pv-prev">◀ prev</button><button id="pv-next-btn">next ▶</button>
+        <span id="pv-clock"></span>
+      </header>
+      <div class="pv-main">
+        <div class="pv-left">
+          <div class="pv-label">Now</div>
+          <div class="pv-box" id="pv-cur"></div>
+          <div class="pv-label">Next</div>
+          <div class="pv-box small" id="pv-next"></div>
+        </div>
+        <div class="pv-notes" id="pv-notes"></div>
+      </div>
+      <div class="pv-keys">← → move · R replay demo · click the timer to restart it · keep this window on the laptop, the deck on the projector</div>`;
+    d.getElementById("pv-timer").onclick = () => { started = Date.now(); tick(); };
+    d.getElementById("pv-prev").onclick = () => go(cur - 1);
+    d.getElementById("pv-next-btn").onclick = () => go(cur + 1);
+    pv.addEventListener("keydown", onKey);
+    pv.addEventListener("resize", scalePreviews);
+    started = Date.now();
+    renderPresenter();
+  }
+
+  function preview(box, slide, still) {
+    box.replaceChildren();
+    if (!slide) return box.insertAdjacentHTML("beforeend", `<div class="end">end of deck</div>`);
+    const c = slide.cloneNode(true);
+    c.classList.add("active");
+    if (still) c.classList.add("still");
+    box.append(pv.document.importNode(c, true));
+  }
+
+  function scalePreviews() {
+    if (!pv || pv.closed) return;
+    pv.document.querySelectorAll(".pv-box").forEach((box) => {
+      const s = box.querySelector(".slide");
+      if (s) s.style.transform = `scale(${box.clientWidth / 1600})`;
+    });
+  }
+
+  function tick() {
+    if (!pv || pv.closed) return;
+    const d = pv.document, el = (Date.now() - started) / 1000;
+    d.getElementById("pv-timer").textContent = mmss(el);
+    d.getElementById("pv-clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const at = planned(slides[cur]), pace = d.getElementById("pv-pace");
+    if (at == null) {
+      pace.textContent = "backup slide";
+      pace.className = "";
+    } else {
+      const late = el - at;
+      pace.textContent = `planned ${mmss(at)} · ${late >= 0 ? "+" : ""}${mmss(late)}`;
+      pace.className = late > 30 ? "late" : late < -30 ? "ahead" : "";
+    }
+  }
+  setInterval(tick, 1000);
+
+  function renderPresenter() {
+    if (!pv || pv.closed) return;
+    const d = pv.document;
+    preview(d.getElementById("pv-cur"), slides[cur], false);
+    preview(d.getElementById("pv-next"), slides[cur + 1], true);
+    d.getElementById("pv-notes").textContent = slides[cur].querySelector(".notes")?.textContent || "";
+    d.getElementById("pv-notes").scrollTop = 0;
+    d.getElementById("pv-count").textContent = `${cur + 1} / ${slides.length}`;
+    scalePreviews();
+    tick();
+  }
+
+  fit();
+  go((parseInt(location.hash.slice(1), 10) || 1) - 1);
+}
+</script>
+</body>
+</html>
